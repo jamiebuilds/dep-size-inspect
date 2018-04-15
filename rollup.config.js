@@ -13,11 +13,11 @@ import resolveFrom from 'resolve-from';
 // to export things, see this for more information:
 // https://github.com/rollup/rollup-plugin-commonjs#custom-named-exports
 const namedExports = {
-  'node_modules/react/index.js': [
+  'dist/node_modules/react/index.js': [
     'Children', 'Component', 'PureComponent', 'createElement', 'cloneElement',
     'isValidElement', 'createFactory', 'version', 'Fragment'
   ],
-  'node_modules/react-dom/index.js': [
+  'dist/node_modules/react-dom/index.js': [
     'findDOMNode', 'render', 'unmountComponentAtNode', 'version'
   ]
 };
@@ -26,7 +26,8 @@ let config = {
   input: process.env.ROLLUP_INPUT_FILE,
   output: {
     file: process.env.ROLLUP_OUTPUT_FILE,
-    format: 'cjs'
+    format: 'cjs',
+    sourcemap: true,
   },
   plugins: [
     resolve({
@@ -34,7 +35,7 @@ let config = {
     }),
     babel({
       externalHelpers: true,
-      exclude: 'node_modules/**'
+      exclude: '**/node_modules/**'
     }),
     commonjs({ namedExports }),
     replace({
@@ -57,6 +58,7 @@ let config = {
 
 if (process.env.ROLLUP_TARGET_ONLY === 'true') {
   config.external = id => {
+    id = id.replace(/^.*commonjs-.*:/, '');
     if (id[0] === '.') return false;
     if (id.includes(process.env.ROLLUP_INPUT_FILE)) return false;
     if (id.includes(process.env.ROLLUP_TARGET_NAME)) return false;

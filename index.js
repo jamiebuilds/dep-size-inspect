@@ -16,6 +16,33 @@ const mkdir = promisify(fs.mkdir);
 const writeFile = promisify(fs.writeFile);
 const stat = promisify(fs.stat);
 
+const DIST_PATH = path.join(__dirname, 'dist');
+const PKG_PATH = path.join(DIST_PATH, 'package.json');
+const ROLLUP_BIN = path.join(__dirname, 'node_modules', '.bin', 'rollup');
+const CONFIG_PATH = path.join(__dirname, 'rollup.config.js');
+
+const DEPS = [
+  'react',
+  'react-dom',
+  'react-select',
+  'styled-components',
+  'redux',
+  'react-redux',
+  'react-transition-group',
+  'react-virtualized',
+  'react-router',
+  'react-router-dom',
+  'reselect',
+  'react-helmet',
+  'prop-types',
+  'react-dnd',
+  'react-responsive',
+  'react-table',
+  'axios',
+  'react-intl',
+  'immutable',
+];
+
 async function exists(filePath) {
   try {
     let fileStat = await stat(filePath);
@@ -28,121 +55,6 @@ async function exists(filePath) {
     }
   }
 }
-
-const DEPS = [
-  'analytics/annotation',
-  'array-find',
-  'assert',
-  'axios',
-  'bricks.js',
-  'bytes',
-  'calendar-base',
-  'chromatism',
-  'chunkinator',
-  'classnames',
-  'collapse-whitespace',
-  'css-color-names',
-  'date-fns',
-  'date-fns/distance_in_words_to_now',
-  'date-fns/format',
-  'date-fns/get_time',
-  'date-fns/is_before',
-  'date-fns/is_same_day',
-  'date-fns/is_this_year',
-  'date-fns/is_today',
-  'date-fns/is_yesterday',
-  'date-fns/parse',
-  'date-fns/start_of_day',
-  'dateformat',
-  'deep-equal',
-  'domready',
-  'es6-promise',
-  'eventemitter2',
-  'filesize',
-  'focusin',
-  'jquery',
-  'js-search',
-  'keycode',
-  'linkify-it',
-  'lodash.clonedeep',
-  'lodash.debounce',
-  'lodash.pick',
-  'lowlight',
-  'lowlight/lib/core',
-  'lru-fast',
-  'markdown-it',
-  'markdown-it-table',
-  'memoize-one',
-  'outdent',
-  'p-queue',
-  'polished/lib/color/parseToRgb',
-  'polished/lib/color/rgba',
-  'postis',
-  'prismjs',
-  'prop-types',
-  'prosemirror-commands',
-  'prosemirror-history',
-  'prosemirror-inputrules',
-  'prosemirror-keymap',
-  'prosemirror-markdown',
-  'prosemirror-model',
-  'prosemirror-schema-list',
-  'prosemirror-state',
-  'prosemirror-tables',
-  'prosemirror-transform',
-  'prosemirror-utils',
-  'prosemirror-view',
-  'query-string',
-  'querystring',
-  'raf-schd',
-  'react',
-  'react-addons-text-content',
-  'react-beautiful-dnd',
-  'react-deprecate',
-  'react-dom',
-  'react-lazily-render',
-  'react-redux',
-  'react-render-image',
-  'react-scrolllock',
-  'react-select',
-  'react-select/lib/Async',
-  'react-select/lib/AsyncCreatable',
-  'react-select/lib/Creatable',
-  'react-select/lib/animated',
-  'react-syntax-highlighter',
-  'react-transition-group',
-  'react-transition-group/Transition',
-  'react-transition-group/TransitionGroup',
-  'react-virtualized/dist/commonjs/List',
-  'redux',
-  'redux-devtools-extension/developmentOnly',
-  'redux-thunk',
-  'refractor',
-  'refractor/core',
-  'resumablejs',
-  'rusha',
-  'rxjs',
-  'rxjs/Observable',
-  'rxjs/Subject',
-  'rxjs/Subscription',
-  'styled-components',
-  'tabbable',
-  // 'typescript',
-  'typestyle',
-  'ua-parser-js',
-  'url',
-  'uuid',
-  'uuid/v1',
-  'uuid/v4',
-  'xregexp/src/addons/unicode-base',
-  'xregexp/src/addons/unicode-categories',
-  'xregexp/src/addons/unicode-scripts',
-  'xregexp/src/xregexp',
-];
-
-const DIST_PATH = path.join(__dirname, 'dist');
-const ROLLUP_BIN = path.join(__dirname, 'node_modules', '.bin', 'rollup');
-const CONFIG_PATH = path.join(__dirname, 'rollup.config.js');
 
 async function createEntry(kind, name, fileContents) {
   let id = name.replace(/\//g, '--');
@@ -159,6 +71,23 @@ async function main() {
   } catch (err) {
     if (err.code !== 'EEXIST') throw err;
   }
+
+  let dependencies = {};
+
+  DEPS.forEach(dep => {
+    dependencies[dep] = 'latest';
+  });
+
+  await writeFile(PKG_PATH, JSON.stringify({
+    name: 'test-pkg',
+    dependencies,
+  }, null, 2));
+
+
+  await spawn('yarn', ['install'], {
+    cwd: DIST_PATH,
+    stdio: 'inherit'
+  });
 
   let entries = await Promise.all(DEPS.map(name => fsLimit(() => {
     return createEntry('module', name, `console.log(require('${name}'));`);
@@ -179,7 +108,7 @@ async function main() {
         ROLLUP_TARGET_NAME: entry.name,
         ROLLUP_TARGET_ONLY: entry.kind === 'all' ? 'false' : 'true',
       }),
-      // stdio: 'inherit',
+      stdio: 'inherit',
     });
 
     let sizes = {};
@@ -191,7 +120,7 @@ async function main() {
       sizes.outputBytes = outputStats.size;
       sizes.outputBytesGz = outputStatsGz.size;
 
-      console.log(chalk.dim(`${entry.name}: ${prettyBytes(sizes.outputBytes)} min, ${prettyBytes(sizes.outputBytesGz)} min+gz`));
+      console.log(chalk.bold.green(`\n>>> ${entry.name}: ${prettyBytes(sizes.outputBytes)} min, ${prettyBytes(sizes.outputBytesGz)} min+gz\n`));
     } else {
       console.log(chalk.red(entry.name));
     }
